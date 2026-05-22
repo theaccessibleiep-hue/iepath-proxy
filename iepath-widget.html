@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IEPath Navigator — AI Goal Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── CONFIGURATION ────────────────────────────────────────────────────
+       Update PROXY_URL below after you deploy to Netlify.
+       It will look like: https://your-site-name.netlify.app/.netlify/functions/claude-proxy
+       ──────────────────────────────────────────────────────────────────── */
+
+    :root {
+      --proxy-url: "";   /* set in JS below */
+      --navy: #1a2744;
+      --navy-mid: #2c3e6e;
+      --gold: #c9973a;
+      --gold-light: #f5e6c8;
+      --teal: #1d7a6e;
+      --teal-light: #e0f2ef;
+      --cream: #faf8f4;
+      --border: rgba(26,39,68,0.13);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--cream);
+      min-height: 100vh;
+    }
+
+    .header {
+      background: var(--navy);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-logo {
+      width: 36px; height: 36px;
+      background: var(--gold);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'DM Serif Display', serif;
+      font-size: 17px; color: white; flex-shrink: 0;
+    }
+
+    .header-text h1 {
+      font-family: 'DM Serif Display', serif;
+      color: white; font-size: 17px; font-weight: 400;
+    }
+
+    .header-text p {
+      color: rgba(255,255,255,0.5);
+      font-size: 10px; font-weight: 300;
+      letter-spacing: 0.07em; text-transform: uppercase; margin-top: 1px;
+    }
+
+    .beta-badge {
+      margin-left: auto;
+      background: var(--gold); color: white;
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 3px 10px; border-radius: 20px;
+    }
+
+    .compliance-bar {
+      background: var(--navy-mid);
+      padding: 6px 24px;
+      display: flex; gap: 16px; flex-wrap: wrap;
+    }
+
+    .compliance-tag {
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      color: rgba(255,255,255,0.55);
+      display: flex; align-items: center; gap: 5px;
+    }
+
+    .compliance-tag::before {
+      content: ''; width: 4px; height: 4px;
+      border-radius: 50%; background: var(--gold);
+    }
+
+    .main { padding: 22px 24px; max-width: 820px; margin: 0 auto; }
+
+    .card {
+      background: white;
+      border: 0.5px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+
+    .card-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 14px; color: var(--navy);
+      margin-bottom: 13px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 11px;
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: 10px; font-weight: 600;
+      color: var(--navy); opacity: 0.55;
+      letter-spacing: 0.05em; text-transform: uppercase;
+    }
+
+    input, select, textarea {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; color: var(--navy);
+      background: var(--cream);
+      border: 0.5px solid var(--border);
+      border-radius: 7px;
+      padding: 8px 11px;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--navy-mid);
+      background: white;
+    }
+
+    textarea { resize: vertical; min-height: 85px; line-height: 1.5; }
+
+    .scrub-notice {
+      display: flex; align-items: flex-start; gap: 8px;
+      background: var(--teal-light);
+      border: 0.5px solid rgba(29,122,110,0.2);
+      border-radius: 8px;
+      padding: 9px 12px;
+      margin-bottom: 14px;
+    }
+
+    .scrub-notice p { font-size: 12px; color: var(--teal); line-height: 1.5; }
+    .scrub-notice strong { font-weight: 600; }
+
+    .generate-btn {
+      width: 100%; padding: 12px;
+      background: var(--navy); color: white;
+      border: none; border-radius: 9px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px; font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex; align-items: center;
+      justify-content: center; gap: 8px;
+    }
+
+    .generate-btn:hover { background: var(--navy-mid); }
+    .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Scrubbed preview ── */
+    .scrubbed-preview {
+      background: #1a1a2e; border-radius: 10px;
+      padding: 13px 15px; margin-bottom: 14px;
+    }
+
+    .sp-label {
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.09em; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 7px;
+    }
+
+    .sp-text { font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.6; }
+
+    /* ── Goal cards ── */
+    .goals-header h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 16px; color: var(--navy); margin-bottom: 3px;
+    }
+
+    .goals-header .sub {
+      font-size: 12px; color: var(--navy); opacity: 0.45; margin-bottom: 14px;
+    }
+
+    .goal-card {
+      background: white;
+      border: 0.5px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 11px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      position: relative;
+    }
+
+    .goal-card:hover { border-color: rgba(26,39,68,0.3); }
+
+    .goal-card.selected {
+      border: 1.5px solid var(--navy);
+      box-shadow: 0 0 0 3px rgba(26,39,68,0.07);
+    }
+
+    .goal-header { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+
+    .goal-num {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--gold-light);
+      border: 0.5px solid var(--gold);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 600; color: var(--gold); flex-shrink: 0;
+    }
+
+    .goal-card.selected .goal-num {
+      background: var(--navy); border-color: var(--navy); color: white;
+    }
+
+    .goal-area {
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal);
+    }
+
+    .goal-text {
+      font-size: 13px; line-height: 1.65; color: var(--navy); margin-bottom: 11px;
+    }
+
+    .objectives-label {
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      color: var(--navy); opacity: 0.38; margin-bottom: 6px;
+    }
+
+    .objective-item {
+      display: flex; align-items: flex-start; gap: 7px;
+      margin-bottom: 6px; font-size: 12px; line-height: 1.5; color: var(--navy); opacity: 0.75;
+    }
+
+    .obj-dot {
+      width: 4px; height: 4px; border-radius: 50%;
+      background: var(--gold); margin-top: 6px; flex-shrink: 0;
+    }
+
+    .measurement-row {
+      font-size: 11px; color: var(--navy); opacity: 0.45;
+      margin-top: 9px; padding-top: 9px;
+      border-top: 0.5px solid var(--border);
+    }
+
+    .compliance-tags {
+      display: flex; gap: 5px; flex-wrap: wrap; margin-top: 9px;
+    }
+
+    .ctag {
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.04em; padding: 2px 7px; border-radius: 20px;
+    }
+
+    .ctag-idea   { background: #e8edf8; color: #1a2744; }
+    .ctag-ferpa  { background: #fef3e0; color: #8a5c00; }
+    .ctag-cc     { background: #e0f2ef; color: #0f5148; }
+    .ctag-ee     { background: #f3e8f8; color: #5a1a7a; }
+
+    .check-mark {
+      position: absolute; top: 13px; right: 15px;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--navy);
+      display: none; align-items: center; justify-content: center;
+      font-size: 11px; color: white;
+    }
+
+    .goal-card.selected .check-mark { display: flex; }
+
+    /* ── Action bar ── */
+    .action-bar {
+      display: flex; gap: 9px; margin-top: 6px;
+    }
+
+    .btn-outline {
+      flex: 1; padding: 10px;
+      background: transparent; color: var(--navy);
+      border: 0.5px solid var(--border);
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: background 0.12s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+
+    .btn-outline:hover { background: var(--cream); }
+
+    .btn-solid {
+      flex: 1; padding: 10px;
+      background: var(--navy); color: white;
+      border: none; border-radius: 8px;
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: background 0.12s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+
+    .btn-solid:hover { background: var(--navy-mid); }
+
+    /* ── Loading ── */
+    .loading { text-align: center; padding: 36px 20px; }
+
+    .spinner {
+      width: 34px; height: 34px;
+      border: 2.5px solid var(--gold-light);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading p { font-size: 13px; color: var(--navy); opacity: 0.45; }
+
+    /* ── Error ── */
+    .error-box {
+      background: #fff5f5;
+      border: 0.5px solid rgba(180,40,40,0.2);
+      border-radius: 9px; padding: 13px 15px;
+      font-size: 13px; color: #8b2020; line-height: 1.5;
+    }
+
+    /* ── Feedback ── */
+    .feedback-row {
+      display: flex; align-items: center; gap: 9px;
+      padding-top: 12px; border-top: 0.5px solid var(--border); margin-top: 14px;
+    }
+
+    .feedback-row span { font-size: 12px; color: var(--navy); opacity: 0.4; flex: 1; }
+
+    .fb-btn {
+      background: transparent; border: 0.5px solid var(--border);
+      border-radius: 6px; padding: 5px 11px;
+      font-size: 12px; font-family: 'DM Sans', sans-serif;
+      color: var(--navy); cursor: pointer; transition: background 0.1s;
+    }
+
+    .fb-btn:hover { background: var(--cream); }
+
+    @media (max-width: 520px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.full { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ─────────────────────────────────────────────────────────────────────
+       CONFIGURATION — update this URL after Netlify deploy
+       ───────────────────────────────────────────────────────────────────── -->
+  <script>
+    const PROXY_URL = "https://YOUR-SITE-NAME.netlify.app/.netlify/functions/claude-proxy";
+    // ↑ Replace YOUR-SITE-NAME with your actual Netlify site name after deploy
+  </script>
+
+  <div class="header">
+    <div class="header-logo">IP</div>
+    <div class="header-text">
+      <h1>IEPath Navigator</h1>
+      <p>AI-Assisted IEP Goal Generator</p>
+    </div>
+    <div class="beta-badge">Beta</div>
+  </div>
+
+  <div class="compliance-bar">
+    <div class="compliance-tag">IDEA Compliant</div>
+    <div class="compliance-tag">FERPA Protected</div>
+    <div class="compliance-tag">Common Core Aligned</div>
+    <div class="compliance-tag">Essential Elements</div>
+    <div class="compliance-tag">Auto PII Scrubbing</div>
+  </div>
+
+  <div class="main">
+    <!-- ── Form view ── -->
+    <div id="form-view">
+      <div class="scrub-notice">
+        <div>
+          <p><strong>Privacy protection active.</strong> Student names, dates, school names, and IDs are automatically removed before any data is analyzed. Nothing identifying is ever stored.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Student Profile — No Names or ID Numbers</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Grade Level</label>
+            <select id="grade">
+              <option value="">Select grade</option>
+              <option>Kindergarten</option>
+              <option>1st Grade</option><option>2nd Grade</option><option>3rd Grade</option>
+              <option>4th Grade</option><option>5th Grade</option><option>6th Grade</option>
+              <option>7th Grade</option><option>8th Grade</option><option>9th Grade</option>
+              <option>10th Grade</option><option>11th Grade</option><option>12th Grade</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Disability Category (IDEA)</label>
+            <select id="disability">
+              <option value="">Select category</option>
+              <option>Autism Spectrum Disorder</option>
+              <option>Emotional Behavioral Disorder</option>
+              <option>Intellectual Disability</option>
+              <option>Learning Disability (SLD)</option>
+              <option>Other Health Impairment (OHI)</option>
+              <option>Speech or Language Impairment</option>
+              <option>Traumatic Brain Injury</option>
+              <option>Visual Impairment</option>
+              <option>Hearing Impairment / Deafness</option>
+              <option>Multiple Disabilities</option>
+              <option>Orthopedic Impairment</option>
+              <option>Developmental Delay</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Primary Area of Need</label>
+            <select id="area">
+              <option value="">Select area</option>
+              <option>Reading / ELA</option>
+              <option>Mathematics</option>
+              <option>Written Expression</option>
+              <option>Communication / Speech</option>
+              <option>Social-Emotional / Behavior</option>
+              <option>Executive Functioning</option>
+              <option>Adaptive / Life Skills</option>
+              <option>Transition / Vocational</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Service Setting</label>
+            <select id="setting">
+              <option value="">Select setting</option>
+              <option>General Education (inclusive)</option>
+              <option>Resource Room (pull-out)</option>
+              <option>Self-Contained Classroom</option>
+              <option>Specialized Day Program</option>
+              <option>Home / Hospital</option>
+              <option>Community-Based</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Present Level of Performance (PLOP)</label>
+            <textarea id="plop" placeholder="Describe current academic and functional performance. Do not include student name, date of birth, school name, or any identifying information..."></textarea>
+          </div>
+          <div class="form-group full">
+            <label>Strengths &amp; Challenges</label>
+            <textarea id="strengths" placeholder="What does the student do well? Primary areas of difficulty? Use observable behaviors and measurable skills..." style="min-height:68px;"></textarea>
+          </div>
+          <div class="form-group full">
+            <label>Parent / Teacher Priorities (optional)</label>
+            <textarea id="priorities" placeholder="Any specific family concerns or teacher observations to guide goal generation..." style="min-height:55px;"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <button class="generate-btn" id="generateBtn" onclick="generateGoals()">
+        ✦ Generate 3 IEP Goal Options
+      </button>
+    </div>
+
+    <!-- ── Results view ── -->
+    <div id="results-view" style="display:none;">
+      <div id="scrubbed-section"></div>
+      <div id="results-content"></div>
+    </div>
+  </div>
+
+  <script>
+    /* ── PII Scrubber ── */
+    function scrubPII(text) {
+      if (!text) return '';
+      return text
+        .replace(/\b[A-Z][a-z]+ [A-Z][a-z]+\b/g, '[STUDENT]')
+        .replace(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b/gi, '[DATE REMOVED]')
+        .replace(/\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/g, '[DATE REMOVED]')
+        .replace(/\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b/g, '[ID REMOVED]')
+        .replace(/\b[A-Z][a-z]+ (Elementary|Middle|High|Academy|School|Charter|Institute)\b/gi, '[SCHOOL REMOVED]')
+        .replace(/\b(Mrs?|Ms|Dr|Mr)\.\s+[A-Z][a-z]+\b/g, '[STAFF REMOVED]')
+        .replace(/\bstudent['']s name is [A-Za-z ]+/gi, 'the student')
+        .trim();
+    }
+
+    /* ── Main generate function ── */
+    async function generateGoals() {
+      const grade    = document.getElementById('grade').value;
+      const disability = document.getElementById('disability').value;
+      const area     = document.getElementById('area').value;
+      const setting  = document.getElementById('setting').value;
+      const plop     = document.getElementById('plop').value;
+      const strengths  = document.getElementById('strengths').value;
+      const priorities = document.getElementById('priorities').value;
+
+      if (!grade || !disability || !area) {
+        alert('Please complete Grade Level, Disability Category, and Primary Area of Need before generating goals.');
+        return;
+      }
+
+      // Scrub all free-text fields
+      const scrubbed          = scrubPII(plop);
+      const scrubbedStrengths  = scrubPII(strengths);
+      const scrubbedPriorities = scrubPII(priorities);
+
+      // Switch to results view
+      document.getElementById('form-view').style.display = 'none';
+      document.getElementById('results-view').style.display = 'block';
+
+      // Show scrubbed preview
+      document.getElementById('scrubbed-section').innerHTML = `
+        <div class="scrubbed-preview">
+          <div class="sp-label">&#9632; PII Scrubbed — This is what was sent to the AI</div>
+          <div class="sp-text">${scrubbed || '<em style="opacity:0.4">No PLOP text provided</em>'}</div>
+        </div>`;
+
+      // Show loading
+      document.getElementById('results-content').innerHTML = `
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Analyzing present level and generating IDEA-compliant goals...</p>
+        </div>`;
+
+      // Build the prompt
+      const prompt = `You are an expert special education IEP writer with deep knowledge of IDEA 2004, FERPA, Common Core State Standards, and Essential Elements (alternate achievement standards).
+
+Generate exactly 3 distinct, measurable annual IEP goal options for this student profile. Each goal must be SMART (Specific, Measurable, Achievable, Relevant, Time-bound) and fully compliant with IDEA requirements.
+
+STUDENT PROFILE:
+- Grade: ${grade}
+- IDEA Disability Category: ${disability}
+- Primary Area of Need: ${area}
+- Service Setting: ${setting}
+- Present Level of Performance: ${scrubbed || 'Not provided'}
+- Strengths & Challenges: ${scrubbedStrengths || 'Not provided'}
+- Priorities: ${scrubbedPriorities || 'Not provided'}
+
+REQUIREMENTS:
+- Each goal must include: (1) a complete annual goal statement, (2) exactly 3 measurable short-term objectives, (3) a suggested measurement method, (4) applicable standards tags from IDEA/Common Core/Essential Elements
+- Goals must be distinct — different approaches, skill levels, or strategies
+- Grade-appropriate and disability-category-appropriate
+- Person-first language throughout
+- No student names or identifying information
+
+Respond ONLY in this exact JSON format with no preamble or markdown:
+{"goals":[{"num":1,"area":"short label","goalStatement":"full annual goal...","objectives":["objective 1","objective 2","objective 3"],"measurement":"how progress is measured...","standards":["IDEA","Common Core","Essential Elements"]},{"num":2,"area":"short label","goalStatement":"full annual goal...","objectives":["objective 1","objective 2","objective 3"],"measurement":"how progress is measured...","standards":["IDEA","Common Core"]},{"num":3,"area":"short label","goalStatement":"full annual goal...","objectives":["objective 1","objective 2","objective 3"],"measurement":"how progress is measured...","standards":["IDEA","Essential Elements"]}]}`;
+
+      try {
+        // Call your Netlify proxy — NOT the Anthropic API directly
+        const response = await fetch(PROXY_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: prompt }]
+          })
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || 'Server error — please try again.');
+        }
+
+        const data = await response.json();
+        const raw  = (data.content || []).map(b => b.text || '').join('');
+
+        let parsed;
+        try {
+          parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+        } catch(e) {
+          throw new Error('Could not read AI response. Please try again.');
+        }
+
+        renderGoals(parsed.goals, grade, disability, area);
+
+      } catch (err) {
+        document.getElementById('results-content').innerHTML = `
+          <div class="error-box">
+            <strong>Generation failed.</strong> ${err.message}
+            <br><br>
+            <button class="btn-outline" style="display:inline-flex;margin-top:6px;max-width:180px;" onclick="resetForm()">
+              &larr; Back to form
+            </button>
+          </div>`;
+      }
+    }
+
+    /* ── Render goals ── */
+    let selectedGoal = null;
+
+    function renderGoals(goals, grade, disability, area) {
+      const tagClass = { 'IDEA': 'ctag-idea', 'FERPA': 'ctag-ferpa', 'Common Core': 'ctag-cc', 'Essential Elements': 'ctag-ee' };
+
+      let html = `<div class="goals-header">
+        <h2>3 Goal Options Generated</h2>
+        <p class="sub">${grade} &middot; ${disability} &middot; ${area}</p>
+      </div>`;
+
+      goals.forEach((g, i) => {
+        const objs = g.objectives.map(o => `
+          <div class="objective-item">
+            <div class="obj-dot"></div><span>${o}</span>
+          </div>`).join('');
+
+        const tags = (g.standards || []).map(s =>
+          `<span class="ctag ${tagClass[s] || 'ctag-idea'}">${s}</span>`).join('');
+
+        html += `
+          <div class="goal-card" id="goal-${i}" onclick="selectGoal(${i})">
+            <div class="check-mark">&#10003;</div>
+            <div class="goal-header">
+              <div class="goal-num">${i + 1}</div>
+              <div class="goal-area">${g.area || area}</div>
+            </div>
+            <p class="goal-text">${g.goalStatement}</p>
+            <div class="objectives-label">Short-Term Objectives</div>
+            ${objs}
+            <div class="measurement-row">Measurement: ${g.measurement || 'Progress monitoring via curriculum-based assessment'}</div>
+            <div class="compliance-tags">${tags}</div>
+          </div>`;
+      });
+
+      html += `
+        <div class="action-bar">
+          <button class="btn-outline" onclick="resetForm()">&larr; New Student</button>
+          <button class="btn-solid" onclick="copySelected()">Copy Selected Goal</button>
+        </div>
+        <div class="feedback-row">
+          <span>Beta — your feedback improves accuracy</span>
+          <button class="fb-btn" onclick="logFeedback('accurate')">&#128077; Accurate</button>
+          <button class="fb-btn" onclick="logFeedback('needs-work')">&#128078; Needs Work</button>
+        </div>`;
+
+      document.getElementById('results-content').innerHTML = html;
+    }
+
+    function selectGoal(i) {
+      document.querySelectorAll('.goal-card').forEach(c => c.classList.remove('selected'));
+      document.getElementById('goal-' + i).classList.add('selected');
+      selectedGoal = i;
+    }
+
+    function copySelected() {
+      if (selectedGoal === null) { alert('Click a goal card to select it first.'); return; }
+      const card = document.getElementById('goal-' + selectedGoal);
+      const goal = card.querySelector('.goal-text').innerText;
+      const area = card.querySelector('.goal-area').innerText;
+      const objs = Array.from(card.querySelectorAll('.objective-item span'))
+                        .map((s, i) => `  ${i+1}. ${s.innerText}`).join('\n');
+      const measure = card.querySelector('.measurement-row').innerText;
+      const text = `IEP ANNUAL GOAL — ${area}\n\nGoal Statement:\n${goal}\n\nShort-Term Objectives:\n${objs}\n\n${measure}\n\n[Generated by IEPath Navigator Beta]`;
+      navigator.clipboard.writeText(text)
+        .then(() => alert('Copied! Paste this directly into your IEP document.'))
+        .catch(() => prompt('Copy this text:', text));
+    }
+
+    function logFeedback(type) {
+      // In future: POST to a logging endpoint for beta analytics
+      alert(type === 'accurate'
+        ? 'Thank you — that helps improve IEPath Navigator.'
+        : 'Noted. We\'ll use this to improve goal accuracy.');
+    }
+
+    function resetForm() {
+      document.getElementById('results-view').style.display = 'none';
+      document.getElementById('form-view').style.display = 'block';
+      selectedGoal = null;
+    }
+  </script>
+</body>
+</html>
